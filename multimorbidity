@@ -1,0 +1,417 @@
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
+diff --git a/comorbidity_derived.R b/comorbidity_derived.R
+new file mode 100644
+index 0000000000000000000000000000000000000000..4466abdf72b915dffdbb0170bcc2aabe7e2b903f
+--- /dev/null
++++ b/comorbidity_derived.R
+@@ -0,0 +1,407 @@
++# 共病衍生变量计算（w0 / w1 / w2）----
++# 说明：
++# 1) 本脚本假设已加载 tidyverse（仅使用 dplyr）。
++# 2) 请根据《基线与重复调查变量说明_5.30最新》更新变量名映射。
++# 3) 变量取值规则：1=患病，其余(0/NA)=未患病。
++# 4) 连续指标（如 eGFR、血脂等）请确保基础变量中已完成单位换算。
++
++library(dplyr)
++
++# ---------- 通用工具函数 ----
++flag_self_report <- function(x) {
++  if_else(is.na(x) | x != 1, 0L, 1L)
++}
++
++flag_indicator <- function(x) {
++  if_else(is.na(x) | x != 1, 0L, 1L)
++}
++
++validate_vars <- function(dat, vars, scope) {
++  missing <- setdiff(vars, names(dat))
++  if (length(missing) > 0) {
++    stop(sprintf("[%s] 缺少变量: %s", scope, paste(missing, collapse = ", ")))
++  }
++  invisible(TRUE)
++}
++
++# 规则复用：eGFR < 60 => CKD (不在本脚本系统内计算，仅提供通用函数)
++flag_ckd_from_egfr <- function(egfr) {
++  if_else(is.na(egfr), 0L, if_else(egfr < 60, 1L, 0L))
++}
++
++# ---------- 变量映射（请根据实际变量名修改）----
++# 自报疾病变量（raw）
++raw_vars_w0 <- c(
++  diabetes = "diabetes_raw_w0",
++  dyslipidemia = "dyslipidemia_raw_w0",
++  psych = "psych_raw_w0",
++  neurasthenia = "neurasthenia_raw_w0",
++  ulcer = "ulcer_raw_w0",
++  gastritis = "gastritis_raw_w0",
++  gallbladder = "gallbladder_raw_w0",
++  hepatitis = "hepatitis_raw_w0",
++  tuberculosis = "tuberculosis_raw_w0",
++  chronic_resp = "chronic_resp_raw_w0",
++  heart_disease = "heart_disease_raw_w0",
++  stroke = "stroke_raw_w0",
++  hypertension = "hypertension_raw_w0"
++)
++
++raw_vars_w1 <- c(
++  diabetes = "diabetes_raw_w1",
++  dyslipidemia = "dyslipidemia_raw_w1",
++  psych = "psych_raw_w1",
++  neurasthenia = "neurasthenia_raw_w1",
++  ulcer = "ulcer_raw_w1",
++  gastritis = "gastritis_raw_w1",
++  gallbladder = "gallbladder_raw_w1",
++  hepatitis = "hepatitis_raw_w1",
++  tuberculosis = "tuberculosis_raw_w1",
++  chronic_resp = "chronic_resp_raw_w1",
++  heart_disease = "heart_disease_raw_w1",
++  stroke = "stroke_raw_w1",
++  hypertension = "hypertension_raw_w1"
++)
++
++raw_vars_w2 <- c(
++  diabetes = "diabetes_raw_w2",
++  dyslipidemia = "dyslipidemia_raw_w2",
++  psych = "psych_raw_w2",
++  neurasthenia = "neurasthenia_raw_w2",
++  ulcer = "ulcer_raw_w2",
++  gastritis = "gastritis_raw_w2",
++  gallbladder = "gallbladder_raw_w2",
++  hepatitis = "hepatitis_raw_w2",
++  tuberculosis = "tuberculosis_raw_w2",
++  chronic_resp = "chronic_resp_raw_w2",
++  heart_disease = "heart_disease_raw_w2",
++  stroke = "stroke_raw_w2",
++  hypertension = "hypertension_raw_w2"
++)
++
++# 指标诊断变量（basic）
++# 注意：请保证这些变量已使用正确的单位和阈值处理。
++basic_vars_w0 <- c(
++  t2dm_dx = "t2dm_dx_w0",
++  dyslipidemia_dx = "dyslipidemia_dx_w0",
++  hypertension_dx = "hypertension_dx_w0",
++  visceral_obesity = "visceral_obesity_w0"
++)
++
++basic_vars_w1 <- c(
++  t2dm_dx = "t2dm_dx_w1",
++  dyslipidemia_dx = "dyslipidemia_dx_w1",
++  hypertension_dx = "hypertension_dx_w1",
++  visceral_obesity = "visceral_obesity_w1"
++)
++
++basic_vars_w2 <- c(
++  t2dm_dx = "t2dm_dx_w2",
++  dyslipidemia_dx = "dyslipidemia_dx_w2",
++  hypertension_dx = "hypertension_dx_w2",
++  visceral_obesity = "visceral_obesity_w2"
++)
++
++# ---------- 共病系统：w0 ----
++# 所需变量 ####
++var_raw_w0 <- unname(raw_vars_w0)
++var_basic_w0 <- unname(basic_vars_w0)
++
++# 合并数据
++systems_dat_w0 <- basic_w0 %>%
++  select(individual_code_w0, all_of(var_basic_w0)) %>%
++  left_join(
++    raw_w0 %>% select(个人编码, all_of(var_raw_w0)),
++    by = c("individual_code_w0" = "个人编码")
++  )
++
++validate_vars(systems_dat_w0, var_raw_w0, "systems_w0/raw")
++validate_vars(systems_dat_w0, var_basic_w0, "systems_w0/basic")
++
++# 计算衍生变量
++systems_w0 <- systems_dat_w0 %>%
++  mutate(
++    diabetes_w0 = flag_self_report(.data[[raw_vars_w0["diabetes"]]]),
++    dyslipidemia_w0 = flag_self_report(.data[[raw_vars_w0["dyslipidemia"]]]),
++    psych_w0 = flag_self_report(.data[[raw_vars_w0["psych"]]]),
++    neurasthenia_w0 = flag_self_report(.data[[raw_vars_w0["neurasthenia"]]]),
++    ulcer_w0 = flag_self_report(.data[[raw_vars_w0["ulcer"]]]),
++    gastritis_w0 = flag_self_report(.data[[raw_vars_w0["gastritis"]]]),
++    gallbladder_w0 = flag_self_report(.data[[raw_vars_w0["gallbladder"]]]),
++    hepatitis_w0 = flag_self_report(.data[[raw_vars_w0["hepatitis"]]]),
++    tuberculosis_w0 = flag_self_report(.data[[raw_vars_w0["tuberculosis"]]]),
++    chronic_resp_w0 = flag_self_report(.data[[raw_vars_w0["chronic_resp"]]]),
++    endocrine_n_w0 = rowSums(across(c(diabetes_w0, dyslipidemia_w0)), na.rm = TRUE),
++    psychiatric_n_w0 = rowSums(across(c(psych_w0, neurasthenia_w0)), na.rm = TRUE),
++    digestive_n_w0 = rowSums(
++      across(c(ulcer_w0, gastritis_w0, gallbladder_w0, hepatitis_w0)),
++      na.rm = TRUE
++    ),
++    respiratory_n_w0 = rowSums(across(c(tuberculosis_w0, chronic_resp_w0)), na.rm = TRUE)
++  ) %>%
++  select(
++    individual_code = individual_code_w0,
++    diabetes_w0, dyslipidemia_w0,
++    psych_w0, neurasthenia_w0,
++    ulcer_w0, gastritis_w0, gallbladder_w0, hepatitis_w0,
++    tuberculosis_w0, chronic_resp_w0,
++    endocrine_n_w0, psychiatric_n_w0, digestive_n_w0, respiratory_n_w0
++  )
++
++# ---------- 共病系统：w1 ----
++# 所需变量 ####
++var_raw_w1 <- unname(raw_vars_w1)
++var_basic_w1 <- unname(basic_vars_w1)
++
++# 合并数据
++systems_dat_w1 <- basic_w1 %>%
++  select(individual_code_w1, all_of(var_basic_w1)) %>%
++  left_join(
++    raw_w1 %>% select(个人编码, all_of(var_raw_w1)),
++    by = c("individual_code_w1" = "个人编码")
++  )
++
++validate_vars(systems_dat_w1, var_raw_w1, "systems_w1/raw")
++validate_vars(systems_dat_w1, var_basic_w1, "systems_w1/basic")
++
++# 计算衍生变量
++systems_w1 <- systems_dat_w1 %>%
++  mutate(
++    diabetes_w1 = flag_self_report(.data[[raw_vars_w1["diabetes"]]]),
++    dyslipidemia_w1 = flag_self_report(.data[[raw_vars_w1["dyslipidemia"]]]),
++    psych_w1 = flag_self_report(.data[[raw_vars_w1["psych"]]]),
++    neurasthenia_w1 = flag_self_report(.data[[raw_vars_w1["neurasthenia"]]]),
++    ulcer_w1 = flag_self_report(.data[[raw_vars_w1["ulcer"]]]),
++    gastritis_w1 = flag_self_report(.data[[raw_vars_w1["gastritis"]]]),
++    gallbladder_w1 = flag_self_report(.data[[raw_vars_w1["gallbladder"]]]),
++    hepatitis_w1 = flag_self_report(.data[[raw_vars_w1["hepatitis"]]]),
++    tuberculosis_w1 = flag_self_report(.data[[raw_vars_w1["tuberculosis"]]]),
++    chronic_resp_w1 = flag_self_report(.data[[raw_vars_w1["chronic_resp"]]]),
++    endocrine_n_w1 = rowSums(across(c(diabetes_w1, dyslipidemia_w1)), na.rm = TRUE),
++    psychiatric_n_w1 = rowSums(across(c(psych_w1, neurasthenia_w1)), na.rm = TRUE),
++    digestive_n_w1 = rowSums(
++      across(c(ulcer_w1, gastritis_w1, gallbladder_w1, hepatitis_w1)),
++      na.rm = TRUE
++    ),
++    respiratory_n_w1 = rowSums(across(c(tuberculosis_w1, chronic_resp_w1)), na.rm = TRUE)
++  ) %>%
++  select(
++    individual_code = individual_code_w1,
++    diabetes_w1, dyslipidemia_w1,
++    psych_w1, neurasthenia_w1,
++    ulcer_w1, gastritis_w1, gallbladder_w1, hepatitis_w1,
++    tuberculosis_w1, chronic_resp_w1,
++    endocrine_n_w1, psychiatric_n_w1, digestive_n_w1, respiratory_n_w1
++  )
++
++# ---------- 共病系统：w2 ----
++# 所需变量 ####
++var_raw_w2 <- unname(raw_vars_w2)
++var_basic_w2 <- unname(basic_vars_w2)
++
++# 合并数据
++systems_dat_w2 <- basic_w2 %>%
++  select(individual_code_w2, all_of(var_basic_w2)) %>%
++  left_join(
++    raw_w2 %>% select(个人编码, all_of(var_raw_w2)),
++    by = c("individual_code_w2" = "个人编码")
++  )
++
++validate_vars(systems_dat_w2, var_raw_w2, "systems_w2/raw")
++validate_vars(systems_dat_w2, var_basic_w2, "systems_w2/basic")
++
++# 计算衍生变量
++systems_w2 <- systems_dat_w2 %>%
++  mutate(
++    diabetes_w2 = flag_self_report(.data[[raw_vars_w2["diabetes"]]]),
++    dyslipidemia_w2 = flag_self_report(.data[[raw_vars_w2["dyslipidemia"]]]),
++    psych_w2 = flag_self_report(.data[[raw_vars_w2["psych"]]]),
++    neurasthenia_w2 = flag_self_report(.data[[raw_vars_w2["neurasthenia"]]]),
++    ulcer_w2 = flag_self_report(.data[[raw_vars_w2["ulcer"]]]),
++    gastritis_w2 = flag_self_report(.data[[raw_vars_w2["gastritis"]]]),
++    gallbladder_w2 = flag_self_report(.data[[raw_vars_w2["gallbladder"]]]),
++    hepatitis_w2 = flag_self_report(.data[[raw_vars_w2["hepatitis"]]]),
++    tuberculosis_w2 = flag_self_report(.data[[raw_vars_w2["tuberculosis"]]]),
++    chronic_resp_w2 = flag_self_report(.data[[raw_vars_w2["chronic_resp"]]]),
++    endocrine_n_w2 = rowSums(across(c(diabetes_w2, dyslipidemia_w2)), na.rm = TRUE),
++    psychiatric_n_w2 = rowSums(across(c(psych_w2, neurasthenia_w2)), na.rm = TRUE),
++    digestive_n_w2 = rowSums(
++      across(c(ulcer_w2, gastritis_w2, gallbladder_w2, hepatitis_w2)),
++      na.rm = TRUE
++    ),
++    respiratory_n_w2 = rowSums(across(c(tuberculosis_w2, chronic_resp_w2)), na.rm = TRUE)
++  ) %>%
++  select(
++    individual_code = individual_code_w2,
++    diabetes_w2, dyslipidemia_w2,
++    psych_w2, neurasthenia_w2,
++    ulcer_w2, gastritis_w2, gallbladder_w2, hepatitis_w2,
++    tuberculosis_w2, chronic_resp_w2,
++    endocrine_n_w2, psychiatric_n_w2, digestive_n_w2, respiratory_n_w2
++  )
++
++# ---------- 共病定义：w0 ----
++# 所需变量 ####
++var_raw_cmm_w0 <- unname(raw_vars_w0[c("diabetes", "dyslipidemia", "heart_disease", "stroke", "hypertension")])
++var_basic_cmm_w0 <- unname(basic_vars_w0)
++
++# 合并数据
++cmm_dat_w0 <- basic_w0 %>%
++  select(individual_code_w0, all_of(var_basic_cmm_w0)) %>%
++  left_join(
++    raw_w0 %>% select(个人编码, all_of(var_raw_cmm_w0)),
++    by = c("individual_code_w0" = "个人编码")
++  )
++
++validate_vars(cmm_dat_w0, var_raw_cmm_w0, "cmm_w0/raw")
++validate_vars(cmm_dat_w0, var_basic_cmm_w0, "cmm_w0/basic")
++
++# 计算衍生变量
++cmm_w0 <- cmm_dat_w0 %>%
++  mutate(
++    t2dm_w0 = pmax(
++      flag_indicator(.data[[basic_vars_w0["t2dm_dx"]]]),
++      flag_self_report(.data[[raw_vars_w0["diabetes"]]]),
++      na.rm = TRUE
++    ),
++    dyslipidemia_w0 = pmax(
++      flag_indicator(.data[[basic_vars_w0["dyslipidemia_dx"]]]),
++      flag_self_report(.data[[raw_vars_w0["dyslipidemia"]]]),
++      na.rm = TRUE
++    ),
++    hypertension_w0 = pmax(
++      flag_indicator(.data[[basic_vars_w0["hypertension_dx"]]]),
++      flag_self_report(.data[[raw_vars_w0["hypertension"]]]),
++      na.rm = TRUE
++    ),
++    heart_disease_w0 = flag_self_report(.data[[raw_vars_w0["heart_disease"]]]),
++    stroke_w0 = flag_self_report(.data[[raw_vars_w0["stroke"]]]),
++    visceral_obesity_w0 = flag_indicator(.data[[basic_vars_w0["visceral_obesity"]]]),
++    cmm_w0 = if_else(
++      rowSums(across(c(t2dm_w0, heart_disease_w0, stroke_w0, visceral_obesity_w0))) >= 2,
++      1L,
++      0L
++    ),
++    mets_w0 = if_else(
++      rowSums(across(c(t2dm_w0, dyslipidemia_w0, hypertension_w0))) >= 2,
++      1L,
++      0L
++    )
++  ) %>%
++  select(
++    individual_code = individual_code_w0,
++    t2dm_w0, dyslipidemia_w0, hypertension_w0,
++    heart_disease_w0, stroke_w0, visceral_obesity_w0,
++    cmm_w0, mets_w0
++  )
++
++# ---------- 共病定义：w1 ----
++# 所需变量 ####
++var_raw_cmm_w1 <- unname(raw_vars_w1[c("diabetes", "dyslipidemia", "heart_disease", "stroke", "hypertension")])
++var_basic_cmm_w1 <- unname(basic_vars_w1)
++
++# 合并数据
++cmm_dat_w1 <- basic_w1 %>%
++  select(individual_code_w1, all_of(var_basic_cmm_w1)) %>%
++  left_join(
++    raw_w1 %>% select(个人编码, all_of(var_raw_cmm_w1)),
++    by = c("individual_code_w1" = "个人编码")
++  )
++
++validate_vars(cmm_dat_w1, var_raw_cmm_w1, "cmm_w1/raw")
++validate_vars(cmm_dat_w1, var_basic_cmm_w1, "cmm_w1/basic")
++
++# 计算衍生变量
++cmm_w1 <- cmm_dat_w1 %>%
++  mutate(
++    t2dm_w1 = pmax(
++      flag_indicator(.data[[basic_vars_w1["t2dm_dx"]]]),
++      flag_self_report(.data[[raw_vars_w1["diabetes"]]]),
++      na.rm = TRUE
++    ),
++    dyslipidemia_w1 = pmax(
++      flag_indicator(.data[[basic_vars_w1["dyslipidemia_dx"]]]),
++      flag_self_report(.data[[raw_vars_w1["dyslipidemia"]]]),
++      na.rm = TRUE
++    ),
++    hypertension_w1 = pmax(
++      flag_indicator(.data[[basic_vars_w1["hypertension_dx"]]]),
++      flag_self_report(.data[[raw_vars_w1["hypertension"]]]),
++      na.rm = TRUE
++    ),
++    heart_disease_w1 = flag_self_report(.data[[raw_vars_w1["heart_disease"]]]),
++    stroke_w1 = flag_self_report(.data[[raw_vars_w1["stroke"]]]),
++    visceral_obesity_w1 = flag_indicator(.data[[basic_vars_w1["visceral_obesity"]]]),
++    cmm_w1 = if_else(
++      rowSums(across(c(t2dm_w1, heart_disease_w1, stroke_w1, visceral_obesity_w1))) >= 2,
++      1L,
++      0L
++    ),
++    mets_w1 = if_else(
++      rowSums(across(c(t2dm_w1, dyslipidemia_w1, hypertension_w1))) >= 2,
++      1L,
++      0L
++    )
++  ) %>%
++  select(
++    individual_code = individual_code_w1,
++    t2dm_w1, dyslipidemia_w1, hypertension_w1,
++    heart_disease_w1, stroke_w1, visceral_obesity_w1,
++    cmm_w1, mets_w1
++  )
++
++# ---------- 共病定义：w2 ----
++# 所需变量 ####
++var_raw_cmm_w2 <- unname(raw_vars_w2[c("diabetes", "dyslipidemia", "heart_disease", "stroke", "hypertension")])
++var_basic_cmm_w2 <- unname(basic_vars_w2)
++
++# 合并数据
++cmm_dat_w2 <- basic_w2 %>%
++  select(individual_code_w2, all_of(var_basic_cmm_w2)) %>%
++  left_join(
++    raw_w2 %>% select(个人编码, all_of(var_raw_cmm_w2)),
++    by = c("individual_code_w2" = "个人编码")
++  )
++
++validate_vars(cmm_dat_w2, var_raw_cmm_w2, "cmm_w2/raw")
++validate_vars(cmm_dat_w2, var_basic_cmm_w2, "cmm_w2/basic")
++
++# 计算衍生变量
++cmm_w2 <- cmm_dat_w2 %>%
++  mutate(
++    t2dm_w2 = pmax(
++      flag_indicator(.data[[basic_vars_w2["t2dm_dx"]]]),
++      flag_self_report(.data[[raw_vars_w2["diabetes"]]]),
++      na.rm = TRUE
++    ),
++    dyslipidemia_w2 = pmax(
++      flag_indicator(.data[[basic_vars_w2["dyslipidemia_dx"]]]),
++      flag_self_report(.data[[raw_vars_w2["dyslipidemia"]]]),
++      na.rm = TRUE
++    ),
++    hypertension_w2 = pmax(
++      flag_indicator(.data[[basic_vars_w2["hypertension_dx"]]]),
++      flag_self_report(.data[[raw_vars_w2["hypertension"]]]),
++      na.rm = TRUE
++    ),
++    heart_disease_w2 = flag_self_report(.data[[raw_vars_w2["heart_disease"]]]),
++    stroke_w2 = flag_self_report(.data[[raw_vars_w2["stroke"]]]),
++    visceral_obesity_w2 = flag_indicator(.data[[basic_vars_w2["visceral_obesity"]]]),
++    cmm_w2 = if_else(
++      rowSums(across(c(t2dm_w2, heart_disease_w2, stroke_w2, visceral_obesity_w2))) >= 2,
++      1L,
++      0L
++    ),
++    mets_w2 = if_else(
++      rowSums(across(c(t2dm_w2, dyslipidemia_w2, hypertension_w2))) >= 2,
++      1L,
++      0L
++    )
++  ) %>%
++  select(
++    individual_code = individual_code_w2,
++    t2dm_w2, dyslipidemia_w2, hypertension_w2,
++    heart_disease_w2, stroke_w2, visceral_obesity_w2,
++    cmm_w2, mets_w2
++  )
++
+ 
+EOF
+)
