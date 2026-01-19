@@ -11,67 +11,50 @@ flag_self_report <- function(x) {
   if_else(is.na(x) | x != 1, 0L, 1L)
 }
 
-validate_vars <- function(dat, vars, scope) {
-  missing <- setdiff(vars, names(dat))
-  if (length(missing) > 0) {
-    stop(sprintf("[%s] 缺少变量: %s", scope, paste(missing, collapse = ", ")))
-  }
-  invisible(TRUE)
-}
-
 # ---------- 变量映射（请根据实际变量名修改）----
 # 自报疾病变量（raw）
-raw_vars_w2 <- c(
-  diabetes = "diabetes_raw_w2",
-  dyslipidemia = "dyslipidemia_raw_w2",
-  psych = "psych_raw_w2",
-  neurasthenia = "neurasthenia_raw_w2",
-  ulcer = "ulcer_raw_w2",
-  gastritis = "gastritis_raw_w2",
-  gallbladder = "gallbladder_raw_w2",
-  hepatitis = "hepatitis_raw_w2",
-  asthma = "asthma_raw_w2",
-  tuberculosis = "tuberculosis_raw_w2",
-  chronic_resp = "chronic_resp_raw_w2"
+var_raw_w2 <- c(
+  "糖尿病",
+  "高脂血症",
+  "精神心理疾患",
+  "神经衰弱",
+  "消化性溃疡",
+  "慢性胃肠炎",
+  "胆囊疾病",
+  "慢性肝炎",
+  "哮喘",
+  "肺结核",
+  "慢性呼吸道疾病"
 )
 
 # ---------- 共病系统：w2 ----
-# 所需变量 ####
-var_raw_w2 <- unname(raw_vars_w2)
-
-# 合并数据
-systems_dat_w2 <- raw_w2 %>%
-  select(个人编码, all_of(var_raw_w2))
-
-validate_vars(systems_dat_w2, var_raw_w2, "systems_w2/raw")
-
-# 计算衍生变量
-systems_w2 <- systems_dat_w2 %>%
+systems_w2 <- raw_w2 %>%
+  select(个人编码, all_of(var_raw_w2)) %>%
   mutate(
-    diabetes_w2 = flag_self_report(.data[[raw_vars_w2["diabetes"]]]),
-    dyslipidemia_w2 = flag_self_report(.data[[raw_vars_w2["dyslipidemia"]]]),
-    psych_w2 = flag_self_report(.data[[raw_vars_w2["psych"]]]),
-    neurasthenia_w2 = flag_self_report(.data[[raw_vars_w2["neurasthenia"]]]),
-    ulcer_w2 = flag_self_report(.data[[raw_vars_w2["ulcer"]]]),
-    gastritis_w2 = flag_self_report(.data[[raw_vars_w2["gastritis"]]]),
-    gallbladder_w2 = flag_self_report(.data[[raw_vars_w2["gallbladder"]]]),
-    hepatitis_w2 = flag_self_report(.data[[raw_vars_w2["hepatitis"]]]),
-    asthma_w2 = flag_self_report(.data[[raw_vars_w2["asthma"]]]),
-    tuberculosis_w2 = flag_self_report(.data[[raw_vars_w2["tuberculosis"]]]),
-    chronic_resp_w2 = flag_self_report(.data[[raw_vars_w2["chronic_resp"]]]),
-    endocrine_n_w2 = rowSums(across(c(diabetes_w2, dyslipidemia_w2)), na.rm = TRUE),
-    psychiatric_n_w2 = rowSums(across(c(psych_w2, neurasthenia_w2)), na.rm = TRUE),
+    糖尿病_w2 = flag_self_report(.data[["糖尿病"]]),
+    高脂血症_w2 = flag_self_report(.data[["高脂血症"]]),
+    精神心理疾患_w2 = flag_self_report(.data[["精神心理疾患"]]),
+    神经衰弱_w2 = flag_self_report(.data[["神经衰弱"]]),
+    消化性溃疡_w2 = flag_self_report(.data[["消化性溃疡"]]),
+    慢性胃肠炎_w2 = flag_self_report(.data[["慢性胃肠炎"]]),
+    胆囊疾病_w2 = flag_self_report(.data[["胆囊疾病"]]),
+    慢性肝炎_w2 = flag_self_report(.data[["慢性肝炎"]]),
+    哮喘_w2 = flag_self_report(.data[["哮喘"]]),
+    肺结核_w2 = flag_self_report(.data[["肺结核"]]),
+    慢性呼吸道疾病_w2 = flag_self_report(.data[["慢性呼吸道疾病"]]),
+    endocrine_n_w2 = rowSums(across(c(糖尿病_w2, 高脂血症_w2)), na.rm = TRUE),
+    psychiatric_n_w2 = rowSums(across(c(精神心理疾患_w2, 神经衰弱_w2)), na.rm = TRUE),
     digestive_n_w2 = rowSums(
-      across(c(ulcer_w2, gastritis_w2, gallbladder_w2, hepatitis_w2)),
+      across(c(消化性溃疡_w2, 慢性胃肠炎_w2, 胆囊疾病_w2, 慢性肝炎_w2)),
       na.rm = TRUE
     ),
-    respiratory_n_w2 = rowSums(across(c(asthma_w2, tuberculosis_w2, chronic_resp_w2)), na.rm = TRUE)
+    respiratory_n_w2 = rowSums(across(c(哮喘_w2, 肺结核_w2, 慢性呼吸道疾病_w2)), na.rm = TRUE)
   ) %>%
   select(
     individual_code = 个人编码,
-    diabetes_w2, dyslipidemia_w2,
-    psych_w2, neurasthenia_w2,
-    ulcer_w2, gastritis_w2, gallbladder_w2, hepatitis_w2,
-    asthma_w2, tuberculosis_w2, chronic_resp_w2,
+    糖尿病_w2, 高脂血症_w2,
+    精神心理疾患_w2, 神经衰弱_w2,
+    消化性溃疡_w2, 慢性胃肠炎_w2, 胆囊疾病_w2, 慢性肝炎_w2,
+    哮喘_w2, 肺结核_w2, 慢性呼吸道疾病_w2,
     endocrine_n_w2, psychiatric_n_w2, digestive_n_w2, respiratory_n_w2
   )
