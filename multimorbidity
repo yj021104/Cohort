@@ -1,60 +1,110 @@
-# 共病衍生变量计算（w2）----
-# 说明：
-# 1) 本脚本假设已加载 tidyverse（仅使用 dplyr）。
-# 2) 请根据《基线与重复调查变量说明_5.30最新》更新变量名映射。
-# 3) 变量取值规则：1=患病，其余(0/NA)=未患病。
+# 共病衍生变量计算
+library(tidyverse)
 
-library(dplyr)
+# ---------- 读入数据 ----
+dat_w2 <- load("第二次随访样例数据.rdata") #data_s2
 
-# ---------- 通用工具函数 ----
-flag_self_report <- function(x) {
-  if_else(is.na(x) | x != 1, 0L, 1L)
-}
+# ---------- 变量映射----
+#所需变量——前11个疾病及2个共病定义
+var_raw_w2 <- c("糖尿病","高脂血症","精神心理疾患","神经衰弱","消化性溃疡","慢性胃肠炎",
+                "胆囊疾病","慢性肝炎","哮喘","肺结核","慢性呼吸道疾病") 
+#冠心病和心肌梗死合并为缺血性心脏病
+var_raw_w2 <- c("冠心病","心肌梗死","心力衰竭","TRIG","HDL-CH")
 
-# ---------- 变量映射（请根据实际变量名修改）----
-# 自报疾病变量（raw）
-var_raw_w2 <- c(
-  "糖尿病",
-  "高脂血症",
-  "精神心理疾患",
-  "神经衰弱",
-  "消化性溃疡",
-  "慢性胃肠炎",
-  "胆囊疾病",
-  "慢性肝炎",
-  "哮喘",
-  "肺结核",
-  "慢性呼吸道疾病"
-)
+# TRIG/HDL-CH单位均为mmol/L, 
+# 创建疾病分类词典——前4个系统（内分泌/精神/消化/呼吸）
+var_endocrine <- c("糖尿病","高脂血症")
+var_psychiatric <- c("精神心理疾患","神经衰弱")
+var_digestive <- c("消化性溃疡","慢性胃肠炎","胆囊疾病","慢性肝炎")
+var_respiratory <- c("哮喘","肺结核","慢性呼吸道疾病")
+
+# 慢病谱向量化
+var_disease <- c("hypertension", "heart_disease", "emphysema" ,"stroke", "tuberculosis","asthma" ,"pepticulcer" ,
+                 "gallstone" ,"rheumatoidarthritis" , "fracture",  "neurasthenia" ,"diabetes",  "cancer", "CKD")
+
+# ---------- 慢病提取----
+# # 合并三次疾病数据，只要有1次自报疾病数据即认为其患慢病
+# data_FI_w1 <- dat2 %>%
+#   left_join(dat_disease_w0,by=c("individual_code_w1"="individual_code_w0")) %>% #合并基线患病数据
+#   mutate(., emphysema = ifelse(E3C5_A_w1 == 1 | "其他疾病名称_w1" %in% var_emphysema | emphysema_w0 == 1 , 1, 0), ##9.4肺气肿或慢性支气管炎
+#          tuberculosis = ifelse(E3C4_A_w1 == 1 | "其他疾病名称_w1" %in% var_tuberculosis | tuberculosis_w0 == 1, 1, 0), ##9.5肺结核
+#          asthma = ifelse(E3C6_A_w1 == 1 | "其他疾病名称_w1" %in% var_asthma | asthma_w0 == 1, 1, 0), ##9.6哮喘
+#          pepticulcer = ifelse(E3C8_A_w1 == 1 | "其他疾病名称_w1" %in% var_pepticulcer | pepticulcer_w0 == 1,1, 0), ##9.7消化道溃疡
+#          gallstone = ifelse(E3C10_A_w1 == 1 | "其他疾病名称_w1"  %in% var_gallstone | gallstone_w0 == 1, 1, 0), ##9.8胆结石
+#          neurasthenia = ifelse(E3C15_A_w1 == 1 | "其他疾病名称_w1" %in% var_neurasthenia | neurasthenia_w0 == 1, 1, 0), ##9.11神经衰弱
+#          diabetes = ifelse(DB_report_w1 == 1 | prediabetic_state_w1 == 1 | "其他疾病名称_w1" %in% var_diabetes | diabetes_w0 == 1, 1, 0), ##9.12糖尿病
+#   ) %>%
+#   mutate_at(., vars(var_disease), ~ replace(., is.na(.),0))
 
 # ---------- 共病系统：w2 ----
-systems_w2 <- raw_w2 %>%
-  select(个人编码, all_of(var_raw_w2)) %>%
+dat_w2 <- dat_w2 %>%
   mutate(
-    糖尿病_w2 = flag_self_report(.data[["糖尿病"]]),
-    高脂血症_w2 = flag_self_report(.data[["高脂血症"]]),
-    精神心理疾患_w2 = flag_self_report(.data[["精神心理疾患"]]),
-    神经衰弱_w2 = flag_self_report(.data[["神经衰弱"]]),
-    消化性溃疡_w2 = flag_self_report(.data[["消化性溃疡"]]),
-    慢性胃肠炎_w2 = flag_self_report(.data[["慢性胃肠炎"]]),
-    胆囊疾病_w2 = flag_self_report(.data[["胆囊疾病"]]),
-    慢性肝炎_w2 = flag_self_report(.data[["慢性肝炎"]]),
-    哮喘_w2 = flag_self_report(.data[["哮喘"]]),
-    肺结核_w2 = flag_self_report(.data[["肺结核"]]),
-    慢性呼吸道疾病_w2 = flag_self_report(.data[["慢性呼吸道疾病"]]),
-    endocrine_n_w2 = rowSums(across(c(糖尿病_w2, 高脂血症_w2)), na.rm = TRUE),
-    psychiatric_n_w2 = rowSums(across(c(精神心理疾患_w2, 神经衰弱_w2)), na.rm = TRUE),
+    diabetes_w2 = flag_self_report(.data[[raw_vars_w2["diabetes"]]]),
+    dyslipidemia_w2 = flag_self_report(.data[[raw_vars_w2["dyslipidemia"]]]),
+    psych_w2 = flag_self_report(.data[[raw_vars_w2["psych"]]]),
+    neurasthenia_w2 = flag_self_report(.data[[raw_vars_w2["neurasthenia"]]]),
+    ulcer_w2 = flag_self_report(.data[[raw_vars_w2["ulcer"]]]),
+    gastritis_w2 = flag_self_report(.data[[raw_vars_w2["gastritis"]]]),
+    gallbladder_w2 = flag_self_report(.data[[raw_vars_w2["gallbladder"]]]),
+    hepatitis_w2 = flag_self_report(.data[[raw_vars_w2["hepatitis"]]]),
+    tuberculosis_w2 = flag_self_report(.data[[raw_vars_w2["tuberculosis"]]]),
+    chronic_resp_w2 = flag_self_report(.data[[raw_vars_w2["chronic_resp"]]]),
+    endocrine_n_w2 = rowSums(across(c(diabetes_w2, dyslipidemia_w2)), na.rm = TRUE),
+    psychiatric_n_w2 = rowSums(across(c(psych_w2, neurasthenia_w2)), na.rm = TRUE),
     digestive_n_w2 = rowSums(
-      across(c(消化性溃疡_w2, 慢性胃肠炎_w2, 胆囊疾病_w2, 慢性肝炎_w2)),
+      across(c(ulcer_w2, gastritis_w2, gallbladder_w2, hepatitis_w2)),
       na.rm = TRUE
     ),
-    respiratory_n_w2 = rowSums(across(c(哮喘_w2, 肺结核_w2, 慢性呼吸道疾病_w2)), na.rm = TRUE)
+    respiratory_n_w2 = rowSums(across(c(tuberculosis_w2, chronic_resp_w2)), na.rm = TRUE)
   ) %>%
   select(
-    individual_code = 个人编码,
-    糖尿病_w2, 高脂血症_w2,
-    精神心理疾患_w2, 神经衰弱_w2,
-    消化性溃疡_w2, 慢性胃肠炎_w2, 胆囊疾病_w2, 慢性肝炎_w2,
-    哮喘_w2, 肺结核_w2, 慢性呼吸道疾病_w2,
+    individual_code = individual_code_w2,
+    diabetes_w2, dyslipidemia_w2,
+    psych_w2, neurasthenia_w2,
+    ulcer_w2, gastritis_w2, gallbladder_w2, hepatitis_w2,
+    tuberculosis_w2, chronic_resp_w2,
     endocrine_n_w2, psychiatric_n_w2, digestive_n_w2, respiratory_n_w2
   )
+
+# ---------- 共病定义：w2 ----
+# 2型糖尿病也依据自报的糖尿病“糖尿病”即可
+dat_2 <- dat_w2 %>%
+  mutate(
+    t2dm_w2 = pmax(
+      flag_indicator(.data[[basic_vars_w2["t2dm_dx"]]]),
+      flag_self_report(.data[[raw_vars_w2["diabetes"]]]),
+      na.rm = TRUE
+    ),
+    dyslipidemia_w2 = pmax(
+      flag_indicator(.data[[basic_vars_w2["dyslipidemia_dx"]]]),
+      flag_self_report(.data[[raw_vars_w2["dyslipidemia"]]]),
+      na.rm = TRUE
+    ),
+    hypertension_w2 = pmax(
+      flag_indicator(.data[[basic_vars_w2["hypertension_dx"]]]),
+      flag_self_report(.data[[raw_vars_w2["hypertension"]]]),
+      na.rm = TRUE
+    ),
+    heart_disease_w2 = flag_self_report(.data[[raw_vars_w2["heart_disease"]]]),
+    stroke_w2 = flag_self_report(.data[[raw_vars_w2["stroke"]]]),
+    visceral_obesity_w2 = flag_indicator(.data[[basic_vars_w2["visceral_obesity"]]]),
+    cmm_w2 = if_else(
+      rowSums(across(c(t2dm_w2, heart_disease_w2, stroke_w2, visceral_obesity_w2))) >= 2,
+      1L,
+      0L
+    ),
+    mets_w2 = if_else(
+      rowSums(across(c(t2dm_w2, dyslipidemia_w2, hypertension_w2))) >= 2,
+      1L,
+      0L
+    )
+  ) %>%
+  select(
+    individual_code = individual_code_w2,
+    t2dm_w2, dyslipidemia_w2, hypertension_w2,
+    heart_disease_w2, stroke_w2, visceral_obesity_w2,
+    cmm_w2, mets_w2
+  )
+
+# ---------- 数据集输出----
+save(dat_2, file = "共病变量数据.rdata")
