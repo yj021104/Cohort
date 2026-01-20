@@ -1,14 +1,14 @@
-# 在基础变量清理的基础上完成以下操作
+# 1. 在基础变量清理的基础上完成以下操作
 table(dat_s2$HbA1c)
 
-#所需变量——24个疾病及4个共病定义
+# 1.1 所需变量：24个疾病及4个共病定义
 var_raw <- c("糖尿病","高脂血症","精神心理疾患","神经衰弱","消化道溃疡","慢性胃肠炎",
              "胆结石","胆囊炎","慢性肝炎/肝硬化","哮喘","肺结核","慢性阻塞性肺疾病（慢阻肺）",
              "慢性支气管炎/肺气肿","中风","冠心病","心肌梗死","高血压","风心病","风湿性关节炎","肺源性心脏病",
              "类风湿性关节炎","椎间盘疾病","慢性肾病","恶性肿瘤","高原红细胞增多症","高原心脏病",
              "青海慢病高原病","TRIG","HDL-CH","CREA","HbA1c","A1") # A1:性别
 
-#从基础变量清理数据集中提取变量（高血压/糖尿病/高脂血症/慢性肾病的体检指标）
+# 1.2 从基础变量清理数据集中提取变量（高血压/糖尿病/高脂血症/慢性肾病的体检指标）
 var_basic <- c("Hypertension_report","DB_report","hyperlipidemia_report","Hypertension_test", 
                "DB_test", "prediabetic_state","hyperlipidemia_test_1", "hyperlipidemia_test_2","waistline",
                "BMI_cont","age_w2", "cardiometabolic_2") 
@@ -19,8 +19,8 @@ dat_2 <- dat_tmp  %>% dplyr::select(individual_code,all_of(var_basic)) %>%
 dat_2$sex <- case_when(dat_2$A1=="男" ~ 1, # 应该与其他部分有重叠，但为了代码独立性，仍然在此处处理性别变量
                        dat_2$A1=="女" ~ 2) 
 
-# ---------- 共病系统：w2 ----
-# 目前自报疾病的数据，1为有该病，0和NA都为未患病
+# 2. 共病系统：w2
+# 2.1 目前自报疾病的数据，1为有该病，0和NA都为未患病
 flag_self_report <- function(x) dplyr::if_else(!is.na(x) & x == 1, 1L, 0L) 
 
 dat_dis_w2 <- dat_2 %>%
@@ -33,7 +33,7 @@ dat_dis_w2 <- dat_2 %>%
     TG = as.numeric(.data[["TRIG"]]),
     HDL = as.numeric(.data[["HDL-CH"]]),
     Mets_w2 = .data[["cardiometabolic_2"]], # Mets调用前面基础变量清理部分的结果
-    # ---- 内分泌系统 ----
+    # 2.1.1 内分泌系统
     diabetes_w2 = as.integer(
       flag_self_report(.data[["DB_report"]]) == 1 |  
         (!is.na(.data[["DB_test"]]) & .data[["DB_test"]] == 1)#|
@@ -44,22 +44,22 @@ dat_dis_w2 <- dat_2 %>%
         (!is.na(.data[["hyperlipidemia_test_1"]]) & .data[["hyperlipidemia_test_1"]] == 1) |
         (!is.na(.data[["hyperlipidemia_test_2"]]) & .data[["hyperlipidemia_test_2"]] == 1)
     ),
-    # ---- 精神系统 ----
+    # 2.1.2 精神系统
     psych_w2         = flag_self_report(.data[["精神心理疾患"]]), 
     neurasthenia_w2  = flag_self_report(.data[["神经衰弱"]]),     
-    # ---- 消化系统 ----
+    # 2.1.3 消化系统
     ulcer_w2         = flag_self_report(.data[["消化道溃疡"]]),     
     gastritis_w2     = flag_self_report(.data[["慢性胃肠炎"]]),   
     hepatitis_w2     = flag_self_report(.data[["慢性肝炎/肝硬化"]]),    
     gallbladder_w2   = as.integer(flag_self_report(.data[["胆结石"]]) == 1 | # 胆囊疾病定义为胆结石或胆囊炎
                                     flag_self_report(.data[["胆囊炎"]]) == 1),
-    # ---- 呼吸系统 ----
+    # 2.1.4 呼吸系统
     asthma_w2        = flag_self_report(.data[["哮喘"]]), 
     tuberculosis_w2  = flag_self_report(.data[["肺结核"]]),      
     chronic_resp_w2  = as.integer(
       flag_self_report(.data[["慢性阻塞性肺疾病（慢阻肺）"]]) == 1 |
         flag_self_report(.data[["慢性支气管炎/肺气肿"]]) == 1),
-    # ---- 循环系统----
+    # 2.1.5 循环系统
     hypertension_w2 = as.integer(
       flag_self_report(.data[["Hypertension_report"]]) == 1 | # 合并两者为慢性呼吸系统疾病
         (!is.na(.data[["Hypertension_test"]]) & .data[["Hypertension_test"]] == 1)),
@@ -72,21 +72,21 @@ dat_dis_w2 <- dat_2 %>%
     rheumatic_heart_w2 = flag_self_report(.data[["风心病"]]),
     # 肺源性心脏病：独立变量
     cor_pulmonale_w2 = flag_self_report(.data[["肺源性心脏病"]]),
-    # ---- 肌肉骨骼系统 ----
+    # 2.1.6 肌肉骨骼系统
     rheum_arthritis_w2 = flag_self_report(.data[["风湿性关节炎"]]),
     rheumatoid_arthritis_w2 = flag_self_report(.data[["类风湿性关节炎"]]),
     disc_disease_w2 = flag_self_report(.data[["椎间盘疾病"]]),
-    # ---- 泌尿生殖系统 ----
+    # 2.1.7 泌尿生殖系统
     chronic_kidney_w2 = flag_self_report(.data[["慢性肾病"]]),
-    # ---- 癌症类 ----
+    # 2.1.8 癌症类
     cancer_w2 = flag_self_report(.data[["恶性肿瘤"]]),
-    # ---- 高原特色慢病 ----
+    # 2.1.9 高原特色慢病
     polycythemia_w2 = flag_self_report(.data[["高原红细胞增多症"]]),
     high_alt_heart_w2 = flag_self_report(.data[["高原心脏病"]]),
     mixed_high_alt_w2 = flag_self_report(.data[["青海慢病高原病"]])
   ) %>%
   mutate(
-    # 分系统共病数
+    # (1)分系统共病数
     endocrine_n_w2   = diabetes_w2 + dyslipidemia_w2,
     psychiatric_n_w2 = psych_w2 + neurasthenia_w2,
     digestive_n_w2   = ulcer_w2 + gastritis_w2 + gallbladder_w2 + hepatitis_w2,
@@ -97,33 +97,33 @@ dat_dis_w2 <- dat_2 %>%
     genitourinary_n_w2 = chronic_kidney_w2,
     cancer_n_w2 = cancer_w2,
     high_altitude_n_w2 = polycythemia_w2 + high_alt_heart_w2 + mixed_high_alt_w2,
-    # 总共病数（全系统）
+    # (2)总共病数（全系统）
     comorb_total_n_w2 = endocrine_n_w2 + psychiatric_n_w2 + digestive_n_w2 + 
                         respiratory_n_w2 + circulatory_n_w2 + musculoskeletal_n_w2 + 
                         genitourinary_n_w2 + cancer_n_w2 + high_altitude_n_w2
   )
 
-# ---------- 共病定义：w2 ----
-# (1)Mets——2型糖尿病（即diabetes_w2）、血脂异常（## 脂代谢异常:升高，边缘升高，降低）、高血压
-# 将基础变量部分代码结果迁移过来（不含非酒精性脂肪肝版本），在dat_dis_w2中
+# 3. 共病定义：w2
+# 3.1 (1)Mets——2型糖尿病（即diabetes_w2）、血脂异常（## 脂代谢异常:升高，边缘升高，降低）、高血压
+# 3.1.1 将基础变量部分代码结果迁移过来（不含非酒精性脂肪肝版本），在dat_dis_w2中
 
-# (2)CMM——2 型糖尿病、心脏病、卒中和内脏肥胖（VAI）
-# 1)2型糖尿病
-# 原文：患者自述的糖尿病病史、经医生诊断的糖尿病史、空腹血糖≥7.0 mmol/L 或目前正在服用降血糖药物
-# 实际：患者自述的糖尿病病史、空腹血糖≥7.0 mmol/L，即上面的diabetes_w2
-# 2)心脏病
-# 原文：包括缺血性心脏病、房颤和心力衰竭，这些疾病根据患者自述的病史或心电图（ECG）检查结果确定
-# 实际：冠心病和心肌梗死合并为缺血性心脏病，第二次没有心力衰竭、没有心电图结果（只有指示变量）
-# 3)卒中
-# 原文：确定依据为患者自述的卒中病史、临床和神经系统检查以及病历记录
-# 实际：中风
-# 4)VAI_local：健康参照人群 -> 拟合 MOAD -> TG/HDL 校正 -> VAI_local
-# VAI = 实际脂肪分布(MOAD) × TG校正因子(评估TG是否正常) × HDL校正因子(评估HDL是否正常)
-# a. 建立脂肪分布模型（MOAD）
-# a.1 定义健康参照人群
-# 非肥胖者（BMI_cont 20-30 kg/m²）的线性回归模型：Y为waistline，X为BMI_cont，分性别建模
-# 遗留：后续是否依据年龄分层建模，下列遗留部分需要根据子君师兄的代码更新
-# 排除条件：无糖尿病(or FPG > 5.6 mmol/l——原文如此，相当于要排除糖前？)、高血压、血脂异常、代谢综合征MetS、心血管疾病(冠心病/心肌梗死/短暂性脑缺血发作/缺血性中风)  
+# 3.2 (2)CMM——2 型糖尿病、心脏病、卒中和内脏肥胖（VAI）
+# (1)2型糖尿病
+# 1)原文：患者自述的糖尿病病史、经医生诊断的糖尿病史、空腹血糖≥7.0 mmol/L 或目前正在服用降血糖药物
+# 2)实际：患者自述的糖尿病病史、空腹血糖≥7.0 mmol/L，即上面的diabetes_w2
+# (2)心脏病
+# 1)原文：包括缺血性心脏病、房颤和心力衰竭，这些疾病根据患者自述的病史或心电图（ECG）检查结果确定
+# 2)实际：冠心病和心肌梗死合并为缺血性心脏病，第二次没有心力衰竭、没有心电图结果（只有指示变量）
+# (3)卒中
+# 1)原文：确定依据为患者自述的卒中病史、临床和神经系统检查以及病历记录
+# 2)实际：中风
+# (4)VAI_local：健康参照人群 -> 拟合 MOAD -> TG/HDL 校正 -> VAI_local
+# a. VAI = 实际脂肪分布(MOAD) × TG校正因子(评估TG是否正常) × HDL校正因子(评估HDL是否正常)
+# b. 建立脂肪分布模型（MOAD）
+# b.1 定义健康参照人群
+# b.2 非肥胖者（BMI_cont 20-30 kg/m²）的线性回归模型：Y为waistline，X为BMI_cont，分性别建模
+# b.3 遗留：后续是否依据年龄分层建模，下列遗留部分需要根据子君师兄的代码更新
+# b.4 排除条件：无糖尿病(or FPG > 5.6 mmol/l——原文如此，相当于要排除糖前？)、高血压、血脂异常、代谢综合征MetS、心血管疾病(冠心病/心肌梗死/短暂性脑缺血发作/缺血性中风)  
 ref_w2 <- dat_dis_w2 %>%
   mutate(
     CVD_tmp = as.integer(heart_disease_w2 == 1 | stroke_w2 == 1)
@@ -138,17 +138,17 @@ ref_w2 <- dat_dis_w2 %>%
     !is.na(waistline), !is.na(TG), !is.na(HDL),
     sex %in% c(1, 2)
   )
-# a.2 分性别拟合waistline ~ BMI_cont（得到a=截距, b=斜率）
+# b.5 分性别拟合waistline ~ BMI_cont（得到a=截距, b=斜率）
 fit_male   <- lm(waistline ~ BMI_cont, data = ref_w2 %>% filter(sex == 1))
 fit_female <- lm(waistline ~ BMI_cont, data = ref_w2 %>% filter(sex == 2))
 coef_m <- coef(fit_male)
 coef_f <- coef(fit_female)
 a_m <- unname(coef_m[1]); b_m <- unname(coef_m[2])
 a_f <- unname(coef_f[1]); b_f <- unname(coef_f[2])
-# b. 校正因子计算
-# b.1 健康人群的代谢指标中位数
-# b.2.1 TG校正因子 = TG / 中位数（男）或 TG / 中位数（女）
-# b.2.2 HDL校正因子 = HDL / 中位数（男）或 HDL / 中位数（女）
+# c. 校正因子计算
+# c.1 健康人群的代谢指标中位数
+# c.2 TG校正因子 = TG / 中位数（男）或 TG / 中位数（女）
+# c.3 HDL校正因子 = HDL / 中位数（男）或 HDL / 中位数（女）
 meds <- ref_w2 %>%
   group_by(sex) %>%
   summarise(
@@ -160,7 +160,7 @@ TG_med_m  <- meds$TG_med[meds$sex == 1]
 HDL_med_m <- meds$HDL_med[meds$sex == 1]
 TG_med_f  <- meds$TG_med[meds$sex == 2]
 HDL_med_f <- meds$HDL_med[meds$sex == 2]
-# c. 整合计算 MOAD / VAI_local
+# d. 整合计算 MOAD / VAI_local
 definition_vai_w2 <- dat_dis_w2 %>%
   mutate(
     MOAD_w2 = case_when(
@@ -180,9 +180,9 @@ definition_vai_w2 <- dat_dis_w2 %>%
     )
   ) %>%
   select(individual_code, MOAD_w2, VAI_local_w2, visceral_obesity_w2)
-# d. CMM定义（CMM-I/CMM-II：≥2并存）
-# CMM-I:三种CMD中同时存在两种或以上CMD（即2型糖尿病、心脏病和中风）
-# CMM-II:超过四个CMD（即内脏肥胖、2 型糖尿病、心脏病和中风）
+# e. CMM定义（CMM-I/CMM-II：≥2并存）
+# e.1 CMM-I:三种CMD中同时存在两种或以上CMD（即2型糖尿病、心脏病和中风）
+# e.2 CMM-II:超过四个CMD（即内脏肥胖、2 型糖尿病、心脏病和中风）
 definition_cmm_w2 <- dat_dis_w2 %>%
   left_join(definition_vai_w2, by = "individual_code") %>%
   transmute(
@@ -195,9 +195,9 @@ definition_cmm_w2 <- dat_dis_w2 %>%
     )
   )
 
-# (3)CRM（慢性肾病相关共病）----------
-# ---------- 慢性肾病（CKD）判定：基于EKFC 2021公式计算eGFR ----------
-# 步骤1：计算Q值
+# 3.3 (3)CRM（慢性肾病相关共病）
+# 3.3.1 慢性肾病（CKD）判定：基于EKFC 2021公式计算eGFR
+# (1)步骤1：计算Q值
 dat_ckd_w2 <- dat_dis_w2 %>%
   left_join(dat_2 %>% select(individual_code, CREA), by = "individual_code") %>% # 关联CREA（SCr）
   mutate(
@@ -216,16 +216,16 @@ dat_ckd_w2 <- dat_dis_w2 %>%
     ),
     # 计算SCr/Q比值
     SCr_Q = SCr / Q,
-# 步骤2：计算基础eGFR（未校正年龄）
+# (2)步骤2：计算基础eGFR（未校正年龄）
     eGFR_base = case_when(
       SCr_Q < 1.0 ~ 107.3 * (SCr_Q)^(-0.322),
       SCr_Q >= 1.0 ~ 107.3 * (SCr_Q)^(-1.132),
       TRUE ~ NA_real_
     ),
-# 步骤3：校正年龄
+# (3)步骤3：校正年龄
     age_correction = ifelse(age >40, 0.990^(age - 40), 1),
     eGFR_final = eGFR_base * age_correction,
-# 步骤4：判定慢性肾病（eGFR < 60 ml/min/1.73m²）
+# (4)步骤4：判定慢性肾病（eGFR < 60 ml/min/1.73m²）
     ckd_w2 = case_when(
       !is.na(eGFR_final) & eGFR_final < 60 ~ 1L,  # 判定为慢性肾病
       !is.na(eGFR_final) & eGFR_final >=60 ~ 0L, # 非慢性肾病
@@ -244,24 +244,24 @@ dat_ckd_w2 <- dat_dis_w2 %>%
   select(
     individual_code, sex, age, SCr, Q, SCr_Q, eGFR_final, eGFR_stage, ckd_w2
   )
-# 步骤5：将CKD判定结果整合到原有共病数据集中
+# (5)步骤5：将CKD判定结果整合到原有共病数据集中
 dat_dis_w2 <- dat_dis_w2 %>%
   left_join(dat_ckd_w2 %>% select(individual_code, ckd_w2, eGFR_final, eGFR_stage), 
             by = "individual_code")
-#CRM = 慢性肾病 + 糖尿病 + 高血压（≥2种并存）
+# 3.3.2 CRM = 慢性肾病 + 糖尿病 + 高血压（≥2种并存）
 definition_crm_w2 <- dat_dis_w2 %>%
   transmute(
     individual_code,
     CRM_w2 = as.integer((ckd_w2 + diabetes_w2 + hypertension_w2) >= 2)
   )
 
-# (4)CkM（心血管肾代谢综合征）----------
-# 计算CKM各组分
+# 3.4 (4)CkM（心血管肾代谢综合征）
+# 3.4.1 计算CKM各组分
 definition_ckm_w2 <- dat_dis_w2 %>%
   left_join(dat_2 %>% select(individual_code, HbA1c), by = "individual_code") %>%
   left_join(definition_vai_w2, by = "individual_code") %>%
   mutate(
-# --- 1. CVD 判定 ---
+    # (1)CVD 判定
     # Clinical CVD：慢性心衰/冠心病/心梗/中风 → 代码中为 heart_disease_w2 + stroke_w2
     clinical_cvd_w2 = as.integer(heart_disease_w2 == 1 | stroke_w2 == 1),
     # Subclinical CVD：仅取eGFR标准（KDIGO高风险CKD）
@@ -273,10 +273,10 @@ definition_ckm_w2 <- dat_dis_w2 %>%
     ),
     # 最终CVD：Clinical CVD 或 Subclinical CVD
     cvd_w2 = as.integer(clinical_cvd_w2 == 1 | subclinical_cvd_w2 == 1),
-# --- 2. Kidney diseases 判定 ---
+    # (2)Kidney diseases 判定
     # 直接使用之前计算的ckd_w2（eGFR <60）
     kidney_disease_w2 = ckd_w2,
-# --- 3. Metabolic disorders 判定 ---
+    # (3)Metabolic disorders 判定
     # 任一满足即算：超重/肥胖、腹型肥胖、糖尿病前期、糖尿病、高血压、高甘油三酯血症、MetS
     overweight_obesity_w2 = as.integer(BMI_cont >= 23),  # 亚洲人群BMI≥23
     abdominal_obesity_w2 = case_when(
@@ -293,33 +293,42 @@ definition_ckm_w2 <- dat_dis_w2 %>%
       overweight_obesity_w2 ==1 | abdominal_obesity_w2 ==1 | prediabetes_w2 ==1 |
         diabetes_w2 ==1 | hypertension_w2 ==1 | dyslipidemia_w2 ==1 | Mets_w2 ==1
     ),
-# --- 4. CKM最终判定 ---
+    # (4)CKM最终判定
     # CVD、Kidney diseases、Metabolic disorders 三者共存即为CKM
     ckm_w2 = as.integer(
       cvd_w2 ==1 & kidney_disease_w2 ==1 & metabolic_disorder_w2 ==1
     )
   ) %>%
-  # 保留核心CKM相关变量
+  # 3.4.2 保留核心CKM相关变量
   select(
     individual_code,
-    # CVD组分
+    # (1)CVD组分
     clinical_cvd_w2, subclinical_cvd_w2, cvd_w2,
-    # Kidney组分
+    # (2)Kidney组分
     kidney_disease_w2,
-    # Metabolic组分
+    # (3)Metabolic组分
     overweight_obesity_w2, abdominal_obesity_w2, prediabetes_w2, metabolic_disorder_w2,
-    # 最终CKM
+    # (4)最终CKM
     ckm_w2
   )
-# 步骤2：将CKM结果整合到主数据集
+# 3.4.3 步骤2：将CKM结果整合到主数据集
 dat_dis_w2 <- dat_dis_w2 %>%
   left_join(definition_ckm_w2, by = "individual_code")
 
-# ---------- 数据集输出----
-# 每个部分最终得到一个数据集，包含id和所计算的新变量，方便后续合并
+# 4. 数据集输出
+# 4.1 每个部分最终得到一个数据集，包含id和所计算的新变量，方便后续合并
 derived_definition_w2 <- dat_dis_w2 %>%
-  select(individual_code, ends_with("_w2"), comorb_total_n_w2) %>%
-  left_join(definition_vai_w2, by = "individual_code") %>%
-  left_join(definition_cmm_w2, by = "individual_code")%>%
-  left_join(definition_ckm_w2, by = "individual_code")%>%
+  select(
+    individual_code,
+    diabetes_w2, dyslipidemia_w2, psych_w2, neurasthenia_w2, ulcer_w2, gastritis_w2,
+    hepatitis_w2, gallbladder_w2, asthma_w2, tuberculosis_w2, chronic_resp_w2,
+    hypertension_w2, stroke_w2, heart_disease_w2, rheumatic_heart_w2, cor_pulmonale_w2,
+    rheum_arthritis_w2, rheumatoid_arthritis_w2, disc_disease_w2, chronic_kidney_w2,
+    cancer_w2, polycythemia_w2, high_alt_heart_w2, mixed_high_alt_w2,
+    endocrine_n_w2, psychiatric_n_w2, digestive_n_w2, respiratory_n_w2, circulatory_n_w2,
+    musculoskeletal_n_w2, genitourinary_n_w2, cancer_n_w2, high_altitude_n_w2,
+    comorb_total_n_w2,
+    ckm_w2
+  ) %>%
+  left_join(definition_cmm_w2, by = "individual_code") %>%
   left_join(definition_crm_w2, by = "individual_code")
